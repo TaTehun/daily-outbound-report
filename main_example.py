@@ -9,7 +9,7 @@ from utils.date_utils import today_str
 from email_pipeline import email_setup as config
 from utils import pivot_utils
 from email_pipeline.downloader import EmailDownloader
-from email_pipeline.sender import load_sender, send_report, send_skip
+from email_pipeline.sender import load_sender, send_report, send_failure_alert, send_skip
 
 DATA_DIR   = config.DATA_DIR
 OUTPUT_DIR = config.OUTPUT_DIR
@@ -181,6 +181,10 @@ def combine_excel():
 if __name__ == "__main__":
     import os
     from dotenv import load_dotenv
+    from utils.log_utils import setup_logger, notify_failure
+    # Log stays in memory; written to file only when a failure alert needs it
+    _, _log_file = setup_logger(config.LOG_BASE, 'main')
+
     load_dotenv(config.ENV_PATH)
 
     pop3_user = os.environ.get(config.POP3_USER_ENV)
@@ -195,19 +199,29 @@ if __name__ == "__main__":
         int(Path(f).stem.rsplit('_', 1)[-1]) >= 1700
         for f in result.downloaded_files
     )
-    has_after_1800 = any(
-        int(Path(f).stem.rsplit('_', 1)[-1]) >= 1800
+    has_after_1900 = any(
+        int(Path(f).stem.rsplit('_', 1)[-1]) >= 1900
         for f in result.downloaded_files
     )
 
-    if not xlsb.exists():
-        output_file, pivot_data = combine_excel()
-        send_report(sender, output_file, result.received_times, is_updated=False, pivot_data=pivot_data)
-    elif mode == "second" and has_after_1700:
-        output_file, pivot_data = combine_excel()
-        send_report(sender, output_file, result.received_times, is_updated=True, pivot_data=pivot_data)
-    elif mode == "third" and has_after_1800:
-        output_file, pivot_data = combine_excel()
-        send_report(sender, output_file, result.received_times, is_updated=True, pivot_data=pivot_data)
-    else:
-        send_skip(sender, result.downloaded_files)
+    try:
+        if not xlsb.exists():
+            output_file, pivot_data = combine_excel()
+            if not result.success:
+                send_failure_alert(sender, received_times=result.received_times)
+            send_report(sender, output_file, result.received_times, is_updated=False, pivot_data=pivot_data)
+        elif mode == "second" and has_after_1700:
+            output_file, pivot_data = combine_excel()
+            if not result.success:
+                send_failure_alert(sender, received_times=result.received_times)
+            send_report(sender, output_file, result.received_times, is_updated=True, pivot_data=pivot_data)
+        elif mode == "third" and has_after_1900:
+            output_file, pivot_data = combine_excel()
+            if not result.success:
+                send_failure_alert(sender, received_times=result.received_times)
+            send_report(sender, output_file, result.received_times, is_updated=True, pivot_data=pivot_data)
+        else:
+            send_skip(sender, received_times=result.received_times)
+    except Exception:
+        # Any crash: email the WARNING/ERROR lines of this run's log
+        notify_failure(sender, config.FAILURE_SUBJECT, config.NOTIFICATION_TO, config.NOTIFICATION_CC, _log_file)

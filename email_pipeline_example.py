@@ -22,6 +22,7 @@ _BASE_OUTPUT  = DESKTOP_PATH / 'YOUR_PROJECT' / 'Output'
 DATA_DIR      = _BASE_DATA   / today_str('f')
 OUTPUT_DIR    = _BASE_OUTPUT / today_str('f')
 TEMPLATE_PATH = _BASE_DATA   / 'template.xlsx'
+LOG_BASE      = DESKTOP_PATH / 'YOUR_PROJECT' / 'Log'
 
 # .env file path, holds POP3/SMTP credentials
 ENV_PATH = Path(r'C:\path\to\your\.env')
@@ -406,15 +407,23 @@ def send_failure_alert(sender: EmailSender, received_times: dict = None) -> bool
     )
 
 
-def send_skip(sender: EmailSender, downloaded_files: list) -> bool:
-    file_names = [Path(f).name for f in downloaded_files]
-    lines = (
-        ["Dear All,", ""]
-        + ["The following files from the second run were identical to the first run.",
-           "No updated report has been sent.", ""]
-        + [f"ㆍ {n}" for n in file_names]
-        + ["", "Thank you"]
-    )
+def send_skip(sender: EmailSender, received_times: dict = None) -> bool:
+    received_times = received_times or {}
+    all_targets = [t['name'] for t in EMAIL_TARGETS]
+    missing  = [n for n in all_targets if n not in received_times]
+    received = [n for n in all_targets if n in received_times]
+
+    lines = ["Dear All,", ""]
+    lines += ["No updated report has been sent as files from this run were identical to the previous run.", ""]
+    if missing:
+        lines += ["The following files were not received today:"]
+        lines += [f"ㆍ {n}" for n in missing]
+        lines += [""]
+    if received:
+        lines += ["The following files were received today:"]
+        lines += [f"ㆍ {n} (Received Date: {received_times[n]})" for n in received]
+        lines += [""]
+    lines.append("Thank you")
     body = '<BODY style="font-size:11pt;font-family:Calibri">' + "<br>".join(lines) + "</BODY>"
     return sender.send(
         subject=SKIP_SUBJECT.format(today_str('e')),

@@ -7,3 +7,6 @@ data/
 output/
 email_pipeline/config.py
 main.py
+
+__pycache__/
+*.pyc

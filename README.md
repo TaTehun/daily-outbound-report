@@ -1,4 +1,4 @@
-# Daily Outbound Report · Automation Pipeline
+# Daily Outbound Report
 
 An end-to-end Python automation pipeline that downloads daily outbound report attachments from email, consolidates them into a single Excel workbook, and distributes the final report via email, all without manual intervention.
 
@@ -22,9 +22,10 @@ Each business day, multiple carriers and logistics partners send their outbound 
 ## Project Structure
 
 ```
-outbound_report/
+daily-outbound-report/
 ├── main.py                        # Data processing, Excel consolidation & run logic
-├── main.example.py                # Simplified reference version of main.py
+├── main_example.py                # Simplified reference version of main.py
+├── email_pipeline_example.py      # Reference version of email_pipeline/
 ├── project-overview.html          # Visual project overview (portfolio)
 ├── run_initial.bat                # 1st daily run (17:00)
 ├── run_second.bat                 # 2nd daily run (18:00)
@@ -35,6 +36,7 @@ outbound_report/
 │   └── sender.py                  # Email sender (report + failure + skip alerts)
 └── utils/
     ├── date_utils.py              # Date formatting utilities
+    ├── log_utils.py               # In-memory log buffer + crash alert with log excerpt
     └── pivot_utils.py             # Pivot refresh (xlwings) + HTML rendering
 ```
 
@@ -92,7 +94,7 @@ The pipeline runs up to 3 times per day via separate bat files. Each subsequent 
 | 1st | `run_initial.bat` | Output file doesn't exist | Consolidate and send report |
 | 2nd | `run_second.bat` | Files with timestamp ≥ 17:00 exist | Re-consolidate and send `(Updated)` report |
 | 2nd | `run_second.bat` | No new files | Send "No Update" notification |
-| 3rd | `run_third.bat` | Files with timestamp ≥ 18:00 exist | Re-consolidate and send `(Updated)` report |
+| 3rd | `run_third.bat` | Files with timestamp ≥ 19:00 exist | Re-consolidate and send `(Updated)` report |
 | 3rd | `run_third.bat` | No new files | Send "No Update" notification |
 
 ---
@@ -145,6 +147,10 @@ python main.py third
 ---
 
 ## Changelog
+
+### v1.4 · 2026-10-21 · Crash alerts & in-memory logging
+- Whole run wrapped in `try/except`: any crash emails the run's WARNING/ERROR log lines
+- Log buffered in memory (`MemoryHandler`), written to file only when an alert needs it; last 10 logs kept
 
 ### v1.3 · 2026-05-07 · Multi-Run Schedule & Module Split
 - 3-run daily schedule with stateless update detection (`_HHMM` suffix)
